@@ -1,4 +1,4 @@
-name: Build and Deploy Backend
+name: Build, Tag and Deploy Backend
 
 on:
   push:
@@ -20,13 +20,32 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Generate version
+      - name: Get latest tag and bump version
         id: version
         run: |
-          VERSION=$(date +%Y%m%d)-$(git rev-parse --short HEAD)
-          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-          echo "📦 Version: $VERSION"
+          # Get latest tag
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "Latest tag: $LATEST_TAG"
+          
+          # Parse version
+          VERSION=${LATEST_TAG#v}
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          
+          # Bump patch version
+          PATCH=$((PATCH + 1))
+          NEW_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+          
+          echo "VERSION=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "📦 New version: $NEW_VERSION"
+
+      - name: Create Git Tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a ${{ steps.version.outputs.VERSION }} -m "Release ${{ steps.version.outputs.VERSION }}"
+          git push origin ${{ steps.version.outputs.VERSION }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -55,7 +74,7 @@ jobs:
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            echo "🚀 Starting deployment..."
+            echo "🚀 Deploying version ${{ steps.version.outputs.VERSION }}..."
             
             # Pull latest image
             docker pull ${{ env.DOCKER_IMAGE }}:${{ steps.version.outputs.VERSION }}
@@ -64,11 +83,11 @@ jobs:
             docker stop focus-room-backend 2>/dev/null || true
             docker rm focus-room-backend 2>/dev/null || true
             
-            # Run new container
+            # Run new container (internal port 3000)
             docker run -d \
               --name focus-room-backend \
               --restart unless-stopped \
-              -p 3000:3000 \
+              --network nginx-network \
               -e NODE_ENV=production \
               -e MONGO_URI="${{ secrets.MONGO_URI }}" \
               -e JWT_SECRET="${{ secrets.JWT_SECRET }}" \
@@ -80,7 +99,7 @@ jobs:
             sleep 10
             
             # Verify deployment
-            if curl -s http://localhost:3000/health | grep -q "ok"; then
+            if docker exec focus-room-backend wget -q --spider http://localhost:3000/health; then
               echo "✅ Deployment successful!"
             else
               echo "❌ Health check failed"
@@ -92,3 +111,18 @@ jobs:
             docker image prune -f
             
             echo "📦 Deployed version: ${{ steps.version.outputs.VERSION }}"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.VERSION }}
+          name: Release ${{ steps.version.outputs.VERSION }}
+          body: |
+            ## Deployment ${{ steps.version.outputs.VERSION }}
+            
+            **Deployed:** ${{ github.event.head_commit.timestamp }}
+            **Commit:** ${{ github.sha }}
+            **Message:** ${{ github.event.head_commit.message }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
