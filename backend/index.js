@@ -34,10 +34,16 @@ const getCorsConfig = () => {
             // Allow requests with no origin (mobile apps, curl, etc)
             if (!origin) return callback(null, true);
 
+            // If no allowed origins configured, allow all (for easier setup)
+            if (allowedOrigins.length === 0) {
+                return callback(null, true);
+            }
+
             if (isProduction) {
                 if (allowedOrigins.indexOf(origin) !== -1) {
                     callback(null, true);
                 } else {
+                    console.log(`CORS blocked origin: ${origin}`);
                     callback(new Error('Not allowed by CORS'));
                 }
             } else {
@@ -55,7 +61,8 @@ const getCorsConfig = () => {
             }
         },
         methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-        credentials: true
+        credentials: true,
+        allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"]
     };
 };
 
