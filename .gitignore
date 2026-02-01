@@ -35,3 +35,6 @@ coverage/
 # Misc
 *.lock
 package-lock.json
+
+*.agents
+*.agent

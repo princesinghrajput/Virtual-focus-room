@@ -5,7 +5,6 @@ import {
     HiVideoCamera,
     HiArrowRight,
     HiUserGroup,
-    HiSparkles,
     HiSun,
     HiMoon,
     HiGlobeAlt,
@@ -26,28 +25,30 @@ import {
     HiBolt,
     HiUsers,
     HiChartBar,
-    HiCalendar
+    HiCalendar,
+    HiSparkles,
+    HiComputerDesktop,
+    HiSignal
 } from 'react-icons/hi2';
 import { useSocket } from '@/context/SocketContext';
 import { useTheme } from '@/context/ThemeContext';
-import { useAuth, USER_TIERS } from '@/context/AuthContext';
+import { useAuth } from '@/context/AuthContext';
 import CalendarModal from '@/components/CalendarModal';
 import ProfileModal from '@/components/ProfileModal';
 import MembersSidebar from '@/components/MembersSidebar';
 
-// Shadcn/ui components
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
 export default function Home() {
     const { socket, isConnected, rooms } = useSocket();
     const { theme, toggleTheme } = useTheme();
-    const { user, tier, isLoggedIn, isPremium, login, signup, logout, upgradeToPremium, permissions } = useAuth();
+    const { user, tier, isLoggedIn, isPremium, login, signup, logout, upgradeToPremium } = useAuth();
     const navigate = useNavigate();
 
     const [username, setUsername] = useState(user?.name || '');
@@ -65,19 +66,16 @@ export default function Home() {
     const [isMembersSidebarOpen, setIsMembersSidebarOpen] = useState(false);
     const [showProfileMenu, setShowProfileMenu] = useState(false);
 
-    // Auth form states
     const [authEmail, setAuthEmail] = useState('');
     const [authPassword, setAuthPassword] = useState('');
     const [authName, setAuthName] = useState('');
     const [isAuthLoading, setIsAuthLoading] = useState(false);
 
-    // Payment form states
     const [paymentStep, setPaymentStep] = useState('plan');
     const [cardNumber, setCardNumber] = useState('');
     const [cardExpiry, setCardExpiry] = useState('');
     const [cardCvc, setCardCvc] = useState('');
 
-    // Simulate live user count
     useEffect(() => {
         const interval = setInterval(() => {
             setActiveUsers(prev => prev + Math.floor(Math.random() * 3) - 1);
@@ -87,10 +85,10 @@ export default function Home() {
 
     const handleCreateRoom = () => {
         if (!username.trim()) return toast.error('Please enter your name');
-        if (!isConnected) return toast.error('Connection lost. Reconnecting...');
+        if (!isConnected) return toast.error('Reconnecting…');
         if (isPrivateRoom && !isPremium) {
             setPricingDialogOpen(true);
-            return toast.error('Private rooms are a Premium feature');
+            return toast.error('Private rooms require Premium');
         }
 
         setIsCreating(true);
@@ -100,7 +98,7 @@ export default function Home() {
             isPrivate: isPrivateRoom && isPremium,
             password: isPrivateRoom && isPremium ? roomPassword : null,
             creatorTier: tier,
-            userId: user?._id // Send User ID
+            userId: user?._id
         }, (response) => {
             setIsCreating(false);
             if (response.success) {
@@ -116,18 +114,18 @@ export default function Home() {
         const displayName = username.trim() || user?.name || '';
         if (!displayName) {
             document.getElementById('username-input')?.focus();
-            return toast.error('Please enter your name first');
+            return toast.error('Enter your name first');
         }
 
         if (room?.isPrivate && !isPremium) {
-            return toast.error('This is a private room. Premium required to join.');
+            return toast.error('Premium required for private rooms');
         }
 
         socket.emit('room:join', {
             roomId,
             username: displayName,
             userTier: tier,
-            userId: user?._id // Send User ID
+            userId: user?._id
         }, (response) => {
             if (response.success) {
                 localStorage.setItem('focusroom_username', displayName);
@@ -141,46 +139,29 @@ export default function Home() {
     const handleAuthSubmit = async (e) => {
         e.preventDefault();
         setIsAuthLoading(true);
-
         try {
-            let result;
-            if (authMode === 'login') {
-                result = await login(authEmail, authPassword);
-            } else {
-                result = await signup(authEmail, authPassword, authName);
-            }
-
+            const result = authMode === 'login'
+                ? await login(authEmail, authPassword)
+                : await signup(authEmail, authPassword, authName);
             if (result.success) {
                 setAuthDialogOpen(false);
-                resetAuthForm();
+                setAuthEmail(''); setAuthPassword(''); setAuthName('');
             }
-        } catch (error) {
-            console.error('Authentication error:', error);
-            // Toast is handled in AuthContext or we can add specific one here if needed
         } finally {
             setIsAuthLoading(false);
         }
-    };
-
-    const resetAuthForm = () => {
-        setAuthEmail('');
-        setAuthPassword('');
-        setAuthName('');
     };
 
     const handleUpgradeToPremium = async () => {
         if (!isLoggedIn) {
             setPricingDialogOpen(false);
             setAuthDialogOpen(true);
-            return toast.error('Please login first to upgrade');
+            return toast.error('Please login first');
         }
-
         setPaymentProcessing(true);
         await new Promise(r => setTimeout(r, 500));
-
         const result = await upgradeToPremium();
         setPaymentProcessing(false);
-
         if (result.success) {
             setPaymentStep('success');
             setTimeout(() => {
@@ -190,364 +171,262 @@ export default function Home() {
         }
     };
 
-    const getTierBadge = () => {
-        if (isPremium) {
-            return (
-                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs font-semibold shadow-lg shadow-amber-500/25">
-                    <HiStar className="w-3.5 h-3.5" /> Premium
-                </span>
-            );
-        }
-        if (isLoggedIn) {
-            return (
-                <span className="px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold border border-primary/20">
-                    Free Plan
-                </span>
-            );
-        }
-        return null;
-    };
-
     const publicRooms = rooms.filter(r => !r.isPrivate);
     const privateRooms = rooms.filter(r => r.isPrivate);
     const totalOnline = rooms.reduce((a, r) => a + (r.participantCount || 0), 0) + activeUsers;
 
-    // Feature comparison data
     const features = [
-        { name: 'Video Conferencing', icon: HiVideoCamera, guest: false, free: true, premium: true },
-        { name: 'Audio Chat', icon: HiMicrophone, guest: false, free: true, premium: true },
-        { name: 'Text Messaging', icon: HiChatBubbleLeftRight, guest: false, free: true, premium: true },
-        { name: 'File Attachments', icon: HiPaperClip, guest: false, free: true, premium: true },
-        { name: 'Screen Sharing', icon: HiPlay, guest: false, free: true, premium: true },
+        { name: 'Video', icon: HiVideoCamera, guest: false, free: true, premium: true },
+        { name: 'Audio', icon: HiMicrophone, guest: false, free: true, premium: true },
+        { name: 'Chat', icon: HiChatBubbleLeftRight, guest: false, free: true, premium: true },
+        { name: 'Files', icon: HiPaperClip, guest: false, free: true, premium: true },
+        { name: 'Screen Share', icon: HiComputerDesktop, guest: false, free: true, premium: true },
         { name: 'Private Rooms', icon: HiLockClosed, guest: false, free: false, premium: true },
     ];
 
+    const featureCards = [
+        { icon: HiUsers, title: 'Coworking', desc: 'Real-time video sessions', color: 'cyan' },
+        { icon: HiClock, title: 'Focus Timer', desc: 'Built-in Pomodoro', color: 'teal' },
+        { icon: HiBolt, title: 'Instant', desc: 'Zero setup needed', color: 'blue' },
+        { icon: HiChatBubbleLeftRight, title: 'Team Chat', desc: 'Stay connected', color: 'emerald' },
+        { icon: HiLockClosed, title: 'Private', desc: 'Password protected', color: 'amber' },
+        { icon: HiChartBar, title: 'Analytics', desc: 'Track progress', color: 'slate' },
+    ];
+
     return (
-        <div className="min-h-screen bg-background text-foreground">
-            {/* Navbar - Responsive */}
-            <nav className="fixed top-0 left-0 right-0 z-50 border-b bg-background/80 backdrop-blur-xl">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
-                    <div className="flex items-center gap-2 sm:gap-4">
-                        <div className="flex items-center gap-2 sm:gap-3">
-                            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/25">
-                                <HiVideoCamera className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-                            </div>
-                            <div>
-                                <span className="text-lg sm:text-xl font-bold tracking-tight">FocusRoom</span>
-                                <p className="text-[9px] sm:text-[10px] text-muted-foreground -mt-0.5 hidden sm:block">Virtual Coworking</p>
-                            </div>
+        <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
+            {/* ===== NAVBAR ===== */}
+            <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-border/50">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center glow-primary">
+                            <HiVideoCamera className="w-5 h-5 text-primary-foreground" aria-hidden="true" />
                         </div>
-                        <div className="hidden sm:block">{getTierBadge()}</div>
+                        <span className="text-lg font-bold tracking-tight">FocusRoom</span>
+                        {isPremium && (
+                            <span className="hidden sm:flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 text-xs font-medium">
+                                <HiStar className="w-3 h-3" /> Pro
+                            </span>
+                        )}
                     </div>
 
-                    <div className="flex items-center gap-1 sm:gap-3">
+                    <div className="flex items-center gap-2">
                         {isLoggedIn && (
                             <>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => navigate('/dashboard')}
-                                    className="rounded-full h-8 w-8 sm:h-9 sm:w-9"
-                                    title="Dashboard"
-                                >
-                                    <HiChartBar className="w-4 h-4 sm:w-5 sm:h-5" />
+                                <Button variant="ghost" size="icon" onClick={() => navigate('/dashboard')} className="rounded-full" aria-label="Dashboard">
+                                    <HiChartBar className="w-5 h-5" />
                                 </Button>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => setCalendarOpen(true)}
-                                    className="rounded-full h-8 w-8 sm:h-9 sm:w-9 hidden sm:flex"
-                                    title="Calendar & Tasks"
-                                >
-                                    <HiCalendar className="w-4 h-4 sm:w-5 sm:h-5" />
+                                <Button variant="ghost" size="icon" onClick={() => setCalendarOpen(true)} className="rounded-full hidden sm:flex" aria-label="Calendar">
+                                    <HiCalendar className="w-5 h-5" />
                                 </Button>
                             </>
                         )}
-                        <Button variant="ghost" size="icon" onClick={toggleTheme} className="rounded-full h-8 w-8 sm:h-9 sm:w-9">
-                            {theme === 'dark' ? <HiSun className="w-4 h-4 sm:w-5 sm:h-5" /> : <HiMoon className="w-4 h-4 sm:w-5 sm:h-5" />}
+
+                        <Button variant="ghost" size="icon" onClick={toggleTheme} className="rounded-full" aria-label="Toggle theme">
+                            {theme === 'dark' ? <HiSun className="w-5 h-5" /> : <HiMoon className="w-5 h-5" />}
                         </Button>
 
                         {!isLoggedIn ? (
-                            <div className="flex items-center gap-1 sm:gap-2">
-                                <Button variant="ghost" size="sm" onClick={() => { setAuthMode('login'); setAuthDialogOpen(true); }} className="h-8 px-2 sm:px-3 text-xs sm:text-sm">
+                            <div className="flex items-center gap-2">
+                                <Button variant="ghost" size="sm" onClick={() => { setAuthMode('login'); setAuthDialogOpen(true); }} className="h-9">
                                     Log In
                                 </Button>
-                                <Button size="sm" onClick={() => { setAuthMode('signup'); setAuthDialogOpen(true); }} className="shadow-lg shadow-primary/25 h-8 px-2 sm:px-4 text-xs sm:text-sm">
-                                    <span className="hidden sm:inline">Get Started</span>
-                                    <span className="sm:hidden">Sign Up</span>
+                                <Button size="sm" onClick={() => { setAuthMode('signup'); setAuthDialogOpen(true); }} className="h-9 btn-glow">
+                                    Get Started
                                 </Button>
                             </div>
                         ) : (
-                            <div className="flex items-center gap-2 sm:gap-3">
+                            <div className="flex items-center gap-2 pl-2 border-l border-border/50">
                                 {!isPremium && (
-                                    <Button
-                                        size="sm"
-                                        className="gap-1 sm:gap-2 h-8 px-2 sm:px-3 text-xs sm:text-sm bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-lg shadow-amber-500/25"
-                                        onClick={() => setPricingDialogOpen(true)}
-                                    >
-                                        <HiStar className="w-3 h-3 sm:w-4 sm:h-4" />
-                                        <span className="hidden sm:inline">Upgrade</span>
+                                    <Button size="sm" className="gap-1.5 h-9 btn-premium hidden sm:flex" onClick={() => setPricingDialogOpen(true)}>
+                                        <HiStar className="w-4 h-4" /> Upgrade
                                     </Button>
                                 )}
-                                <div className="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-3 border-l">
-                                    <div className="relative">
-                                        <button
-                                            className="flex items-center gap-2 focus:outline-none"
-                                            onClick={() => setShowProfileMenu(!showProfileMenu)}
-                                        >
-                                            <Avatar className="h-7 w-7 sm:h-8 sm:w-8 ring-2 ring-primary/20">
-                                                <AvatarFallback className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white text-xs sm:text-sm font-bold">
-                                                    {user?.name?.charAt(0).toUpperCase()}
-                                                </AvatarFallback>
-                                            </Avatar>
-                                            <span className="text-sm font-medium hidden md:block">{user?.name}</span>
-                                        </button>
 
-                                        {/* Dropdown */}
-                                        {showProfileMenu && (
-                                            <div className="absolute top-full right-0 mt-2 w-48 bg-card border rounded-lg shadow-xl z-50 py-1 animate-in fade-in zoom-in-95 duration-200">
-                                                <div className="px-4 py-2 border-b">
+                                <div className="relative">
+                                    <button
+                                        className="rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                        onClick={() => setShowProfileMenu(!showProfileMenu)}
+                                        aria-label="Profile menu"
+                                    >
+                                        <Avatar className="h-8 w-8 ring-2 ring-primary/20">
+                                            <AvatarFallback className="bg-primary text-primary-foreground text-sm font-semibold">
+                                                {user?.name?.charAt(0).toUpperCase()}
+                                            </AvatarFallback>
+                                        </Avatar>
+                                    </button>
+
+                                    {showProfileMenu && (
+                                        <>
+                                            <div className="fixed inset-0 z-40" onClick={() => setShowProfileMenu(false)} />
+                                            <div className="absolute top-full right-0 mt-2 w-52 glass border rounded-xl shadow-xl z-50 py-1 animate-scale-in">
+                                                <div className="px-4 py-3 border-b border-border/50">
                                                     <p className="font-medium text-sm truncate">{user?.name}</p>
                                                     <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
                                                 </div>
-                                                <button
-                                                    className="w-full text-left px-4 py-2 text-sm hover:bg-accent flex items-center gap-2 transition-colors"
-                                                    onClick={() => { setIsProfileModalOpen(true); setShowProfileMenu(false); }}
-                                                >
-                                                    <HiUser className="w-4 h-4" /> Profile
+                                                <button className="w-full text-left px-4 py-2.5 text-sm hover:bg-accent flex items-center gap-2 cursor-pointer" onClick={() => { setIsProfileModalOpen(true); setShowProfileMenu(false); }}>
+                                                    <HiUser className="w-4 h-4 text-muted-foreground" /> Profile
                                                 </button>
-                                                <button
-                                                    className="w-full text-left px-4 py-2 text-sm hover:bg-red-50 text-red-500 flex items-center gap-2 transition-colors"
-                                                    onClick={() => { setShowProfileMenu(false); logout(); }}
-                                                >
-                                                    <HiArrowRightOnRectangle className="w-4 h-4" /> Logout
+                                                <button className="w-full text-left px-4 py-2.5 text-sm hover:bg-destructive/10 text-destructive flex items-center gap-2 cursor-pointer" onClick={() => { setShowProfileMenu(false); logout(); }}>
+                                                    <HiArrowRightOnRectangle className="w-4 h-4" /> Log Out
                                                 </button>
                                             </div>
-                                        )}
-
-                                        {/* Overlay to close menu */}
-                                        {showProfileMenu && (
-                                            <div className="fixed inset-0 z-40" onClick={() => setShowProfileMenu(false)}></div>
-                                        )}
-                                    </div>
-
-                                    <Button variant="ghost" size="icon" onClick={() => setIsMembersSidebarOpen(true)} title="Members" className="rounded-full h-8 w-8 sm:h-9 sm:w-9">
-                                        <HiUsers className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
-                                    </Button>
+                                        </>
+                                    )}
                                 </div>
+
+                                <Button variant="ghost" size="icon" onClick={() => setIsMembersSidebarOpen(true)} className="rounded-full" aria-label="Members">
+                                    <HiUsers className="w-5 h-5" />
+                                </Button>
                             </div>
                         )}
                     </div>
                 </div>
             </nav>
 
-            {/* Hero Section - Responsive */}
-            <section className="pt-20 sm:pt-24 pb-8 sm:pb-12 px-4 sm:px-6 relative overflow-hidden">
-                {/* Background Elements */}
-                <div className="absolute inset-0 -z-10">
-                    <div className="absolute top-20 left-1/4 w-64 sm:w-96 h-64 sm:h-96 bg-indigo-500/10 rounded-full blur-3xl opacity-50" />
-                    <div className="absolute bottom-0 right-1/4 w-64 sm:w-96 h-64 sm:h-96 bg-purple-500/10 rounded-full blur-3xl opacity-50" />
-                </div>
+            {/* ===== HERO ===== */}
+            <section className="relative min-h-screen flex items-center pt-16">
+                {/* Decorative Orbs */}
+                <div className="orb orb-primary w-[500px] h-[500px] -top-48 -left-48 animate-float" aria-hidden="true" />
+                <div className="orb orb-secondary w-[400px] h-[400px] top-1/2 -right-48 animate-float-delayed" aria-hidden="true" />
 
-                <div className="max-w-7xl mx-auto">
-                    <div className="grid lg:grid-cols-2 gap-8 lg:gap-10 items-center">
-                        {/* Left Column - Hero Content */}
-                        <div className="space-y-4 sm:space-y-6 text-center lg:text-left">
+                {/* Grid Background */}
+                <div className="absolute inset-0 bg-grid opacity-40" aria-hidden="true" />
+                <div className="absolute inset-0 gradient-mesh" aria-hidden="true" />
+
+                <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24">
+                    <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-center">
+                        {/* Left */}
+                        <div className="text-center lg:text-left space-y-8">
                             {/* Live Badge */}
-                            <div className="inline-flex items-center gap-2 sm:gap-3 px-3 py-1.5 rounded-full bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20">
-                                <span className="relative flex h-2 w-2 sm:h-2.5 sm:w-2.5">
-                                    <span className="animate-ping absolute h-full w-full rounded-full bg-green-500 opacity-75"></span>
-                                    <span className="relative rounded-full h-2 w-2 sm:h-2.5 sm:w-2.5 bg-green-500"></span>
+                            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full glass border border-emerald-500/20">
+                                <span className="relative flex h-2 w-2">
+                                    <span className="live-dot absolute h-full w-full rounded-full bg-emerald-500" />
+                                    <span className="relative rounded-full h-2 w-2 bg-emerald-500" />
                                 </span>
-                                <span className="text-xs sm:text-sm font-medium text-green-600 dark:text-green-400">
-                                    {totalOnline.toLocaleString()} people focusing
+                                <span className="text-sm font-medium text-emerald-500 tabular-nums">
+                                    {totalOnline.toLocaleString()} focusing
                                 </span>
                             </div>
 
-                            {/* Main Heading */}
-                            <div className="space-y-2 sm:space-y-3">
-                                <h1 className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-bold leading-tight tracking-tight">
-                                    Focus better,{' '}
-                                    <span className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 bg-clip-text text-transparent">
-                                        together.
-                                    </span>
-                                </h1>
-                                <p className="text-base sm:text-lg text-muted-foreground max-w-lg mx-auto lg:mx-0 leading-relaxed">
-                                    Join virtual coworking sessions with focused individuals.
-                                    Stay accountable, stay productive.
-                                </p>
-                            </div>
+                            {/* Heading */}
+                            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.05]">
+                                Focus better,
+                                <br />
+                                <span className="gradient-text-primary">together.</span>
+                            </h1>
 
-                            {/* Stats Row - Hidden on mobile */}
-                            <div className="hidden sm:flex items-center justify-center lg:justify-start gap-6 sm:gap-8 py-2">
+                            <p className="text-lg sm:text-xl text-muted-foreground max-w-lg mx-auto lg:mx-0">
+                                Virtual coworking for maximum productivity.
+                            </p>
+
+                            {/* Stats */}
+                            <div className="flex items-center justify-center lg:justify-start gap-10">
                                 <div>
-                                    <p className="text-xl sm:text-2xl font-bold">50K+</p>
-                                    <p className="text-xs text-muted-foreground">Active Users</p>
+                                    <p className="text-3xl sm:text-4xl font-bold stat-value">50K+</p>
+                                    <p className="text-sm text-muted-foreground">Users</p>
                                 </div>
-                                <div className="w-px h-8 bg-border" />
+                                <div className="w-px h-12 bg-border" />
                                 <div>
-                                    <p className="text-xl sm:text-2xl font-bold">1M+</p>
-                                    <p className="text-xs text-muted-foreground">Focus Hours</p>
+                                    <p className="text-3xl sm:text-4xl font-bold stat-value">1M+</p>
+                                    <p className="text-sm text-muted-foreground">Hours</p>
                                 </div>
-                                <div className="w-px h-8 bg-border" />
-                                <div>
-                                    <p className="text-xl sm:text-2xl font-bold">4.9</p>
-                                    <p className="text-xs text-muted-foreground">User Rating</p>
+                                <div className="w-px h-12 bg-border hidden sm:block" />
+                                <div className="hidden sm:block">
+                                    <p className="text-3xl sm:text-4xl font-bold stat-value">4.9</p>
+                                    <p className="text-sm text-muted-foreground">Rating</p>
                                 </div>
                             </div>
 
-                            {/* CTA Buttons */}
-                            <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-3">
-                                <Button
-                                    size="lg"
-                                    className="w-full sm:w-auto h-11 sm:h-12 px-6 text-sm sm:text-base shadow-xl shadow-primary/25 gap-2"
-                                    onClick={() => document.getElementById('username-input')?.focus()}
-                                >
-                                    Start Focusing <HiArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
+                            {/* CTAs */}
+                            <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4">
+                                <Button size="lg" className="h-14 px-8 text-base btn-glow gap-2 w-full sm:w-auto" onClick={() => document.getElementById('username-input')?.focus()}>
+                                    Start Now <HiArrowRight className="w-5 h-5" />
                                 </Button>
-                                <Button variant="outline" size="lg" className="w-full sm:w-auto h-11 sm:h-12 px-6 text-sm sm:text-base gap-2">
-                                    <HiPlay className="w-4 h-4 sm:w-5 sm:h-5" /> Watch Demo
+                                <Button variant="outline" size="lg" className="h-14 px-8 text-base gap-2 w-full sm:w-auto glass border-border/50">
+                                    <HiPlay className="w-5 h-5" /> Watch Demo
                                 </Button>
                             </div>
                         </div>
 
-                        {/* Right Column - Room Creation Card */}
-                        <div id="start-section" className="relative lg:pl-10">
-                            <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-3xl blur-2xl opacity-20 -z-10" />
-                            <Card className="border-2 shadow-xl">
-                                <CardHeader className="pb-2 pt-5 px-5">
+                        {/* Right - Form Card */}
+                        <div className="relative">
+                            <div className="absolute inset-0 bg-primary/20 rounded-3xl blur-3xl -z-10" aria-hidden="true" />
+                            <Card className="card-glass border-border/50 shadow-2xl">
+                                <CardHeader className="pb-4">
                                     <div className="flex items-center justify-between">
                                         <div>
-                                            <CardTitle className="text-xl">Start a Session</CardTitle>
-                                            <CardDescription className="text-sm mt-1">
-                                                {isLoggedIn
-                                                    ? isPremium
-                                                        ? 'Create public or private focus rooms'
-                                                        : 'Create public rooms • Upgrade for private'
-                                                    : 'Join as guest or sign up for full access'}
+                                            <CardTitle className="text-xl">Start Session</CardTitle>
+                                            <CardDescription className="mt-1">
+                                                {isLoggedIn ? (isPremium ? 'Create any room' : 'Public rooms') : 'Guest mode'}
                                             </CardDescription>
                                         </div>
-                                        {!isLoggedIn && (
-                                            <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center shrink-0">
-                                                <HiUser className="w-5 h-5 text-amber-500" />
-                                            </div>
-                                        )}
+                                        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                                            <HiSignal className="w-5 h-5 text-primary" />
+                                        </div>
                                     </div>
                                 </CardHeader>
-                                <CardContent className="space-y-4 px-5 pb-5">
-                                    {/* Guest Warning */}
+                                <CardContent className="space-y-4">
                                     {!isLoggedIn && (
-                                        <div className="p-3 rounded-lg bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20">
+                                        <div className="p-3 rounded-xl glass border border-amber-500/20 bg-amber-500/5">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-7 h-7 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
-                                                    <HiSparkles className="w-3.5 h-3.5 text-amber-600" />
-                                                </div>
-                                                <div className="text-sm">
-                                                    <p className="font-medium text-amber-700 dark:text-amber-400">Guest Mode</p>
-                                                    <p className="text-xs text-muted-foreground">
-                                                        View only. <button
-                                                            className="text-primary font-medium hover:underline"
-                                                            onClick={() => { setAuthMode('signup'); setAuthDialogOpen(true); }}
-                                                        >
-                                                            Sign up
-                                                        </button> for full access.
-                                                    </p>
-                                                </div>
+                                                <HiSparkles className="w-5 h-5 text-amber-500 shrink-0" />
+                                                <p className="text-sm">
+                                                    <button className="text-primary font-medium hover:underline cursor-pointer" onClick={() => { setAuthMode('signup'); setAuthDialogOpen(true); }}>
+                                                        Sign up
+                                                    </button>
+                                                    {' '}for full access
+                                                </p>
                                             </div>
                                         </div>
                                     )}
 
-                                    <div className="space-y-1.5">
-                                        <Label htmlFor="username-input" className="text-xs uppercase font-semibold text-muted-foreground tracking-wider">Display Name</Label>
-                                        <Input
-                                            id="username-input"
-                                            placeholder="Enter your name"
-                                            value={username}
-                                            onChange={e => setUsername(e.target.value)}
-                                            maxLength={25}
-                                            className="h-10 text-base"
-                                        />
+                                    <div className="space-y-2">
+                                        <Label htmlFor="username-input">Name</Label>
+                                        <Input id="username-input" placeholder="Your name…" value={username} onChange={e => setUsername(e.target.value)} maxLength={25} className="h-12 bg-background/50" autoComplete="name" />
                                     </div>
 
-                                    <div className="space-y-1.5">
-                                        <Label htmlFor="room-name" className="text-xs uppercase font-semibold text-muted-foreground tracking-wider">
-                                            Room Name <span className="text-[10px] normal-case opacity-70">(Optional)</span>
-                                        </Label>
-                                        <Input
-                                            id="room-name"
-                                            placeholder="e.g. Deep Work Session"
-                                            value={roomName}
-                                            onChange={e => setRoomName(e.target.value)}
-                                            maxLength={40}
-                                            className="h-10 text-base"
-                                        />
+                                    <div className="space-y-2">
+                                        <Label htmlFor="room-name">Room <span className="text-muted-foreground">(optional)</span></Label>
+                                        <Input id="room-name" placeholder="Deep Work…" value={roomName} onChange={e => setRoomName(e.target.value)} maxLength={40} className="h-12 bg-background/50" autoComplete="off" />
                                     </div>
 
-                                    {/* Private Room Toggle */}
-                                    <div
-                                        className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer ${isPremium
-                                            ? isPrivateRoom
-                                                ? 'border-primary bg-primary/5'
-                                                : 'border-border hover:border-primary/50'
-                                            : 'border-dashed border-muted-foreground/30 opacity-70'
-                                            }`}
+                                    <button
+                                        type="button"
+                                        className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${isPremium ? isPrivateRoom ? 'border-primary bg-primary/5' : 'border-border/50 hover:border-primary/50' : 'border-dashed opacity-60'}`}
                                         onClick={() => isPremium ? setIsPrivateRoom(!isPrivateRoom) : setPricingDialogOpen(true)}
                                     >
                                         <div className="flex items-center gap-3">
-                                            <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${isPremium ? 'bg-primary/10' : 'bg-muted'}`}>
-                                                {isPremium ? (
-                                                    <HiLockClosed className="w-4 h-4 text-primary" />
-                                                ) : (
-                                                    <HiLockOpen className="w-4 h-4 text-muted-foreground" />
-                                                )}
+                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isPremium ? 'bg-primary/10' : 'bg-muted'}`}>
+                                                {isPremium ? <HiLockClosed className="w-5 h-5 text-primary" /> : <HiLockOpen className="w-5 h-5 text-muted-foreground" />}
                                             </div>
-                                            <div>
+                                            <div className="text-left">
                                                 <p className="text-sm font-medium flex items-center gap-2">
-                                                    Private Room
-                                                    {!isPremium && (
-                                                        <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-500 text-white font-bold leading-none">
-                                                            PRO
-                                                        </span>
-                                                    )}
+                                                    Private {!isPremium && <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-500 text-white font-semibold">PRO</span>}
                                                 </p>
-                                                <p className="text-[10px] text-muted-foreground">Password protected</p>
+                                                <p className="text-xs text-muted-foreground">Password protected</p>
                                             </div>
                                         </div>
-                                        <div className={`w-10 h-6 rounded-full transition-colors flex items-center px-1 ${isPrivateRoom && isPremium ? 'bg-primary' : 'bg-muted'}`}>
-                                            <div className={`w-4 h-4 rounded-full bg-white shadow transition-transform ${isPrivateRoom && isPremium ? 'translate-x-4' : 'translate-x-0'}`} />
+                                        <div className={`w-12 h-7 rounded-full transition-colors flex items-center px-1 ${isPrivateRoom && isPremium ? 'bg-primary' : 'bg-muted'}`}>
+                                            <div className={`w-5 h-5 rounded-full bg-white shadow transition-transform ${isPrivateRoom && isPremium ? 'translate-x-5' : ''}`} />
                                         </div>
-                                    </div>
+                                    </button>
 
                                     {isPrivateRoom && isPremium && (
-                                        <div className="space-y-1.5 animate-in slide-in-from-top-2">
-                                            <Label htmlFor="room-password" className="text-xs uppercase font-semibold text-muted-foreground tracking-wider">Password</Label>
-                                            <Input
-                                                id="room-password"
-                                                type="password"
-                                                placeholder="Enter password"
-                                                value={roomPassword}
-                                                onChange={e => setRoomPassword(e.target.value)}
-                                                maxLength={20}
-                                                className="h-10"
-                                            />
+                                        <div className="space-y-2 animate-fade-in-up">
+                                            <Label htmlFor="room-password">Password</Label>
+                                            <Input id="room-password" type="password" placeholder="••••••" value={roomPassword} onChange={e => setRoomPassword(e.target.value)} maxLength={20} className="h-12 bg-background/50" />
                                         </div>
                                     )}
 
-                                    <Button
-                                        onClick={handleCreateRoom}
-                                        disabled={isCreating}
-                                        className="w-full h-12 text-base font-semibold shadow-lg shadow-primary/25 mt-2"
-                                        size="lg"
-                                    >
+                                    <Button onClick={handleCreateRoom} disabled={isCreating} className="w-full h-14 text-base font-semibold btn-glow" size="lg">
                                         {isCreating ? (
                                             <span className="flex items-center gap-2">
-                                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                                Creating...
+                                                <span className="w-5 h-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                                                Creating…
                                             </span>
                                         ) : (
-                                            <span className="flex items-center gap-2">
-                                                Start Focusing <HiArrowRight className="w-4 h-4" />
-                                            </span>
+                                            <span className="flex items-center gap-2">Start Focusing <HiArrowRight className="w-5 h-5" /></span>
                                         )}
                                     </Button>
                                 </CardContent>
@@ -557,68 +436,68 @@ export default function Home() {
                 </div>
             </section>
 
-            {/* Live Rooms Section - Moved up */}
-            <section className="py-12 px-6 bg-muted/30">
-                <div className="max-w-7xl mx-auto">
-                    <div className="flex items-center justify-between mb-8">
+            {/* ===== LIVE ROOMS ===== */}
+            <section className="py-24 px-4 sm:px-6 lg:px-8 relative">
+                <div className="absolute inset-0 bg-muted/30" />
+                <div className="relative max-w-7xl mx-auto">
+                    <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-10">
                         <div>
-                            <h2 className="text-2xl font-bold mb-1">Live Sessions</h2>
-                            <p className="text-sm text-muted-foreground">Join a room and start focusing with others</p>
+                            <h2 className="text-3xl sm:text-4xl font-bold">Live Sessions</h2>
+                            <p className="text-muted-foreground mt-2">Join others focused right now</p>
                         </div>
-                        <div className="text-right">
-                            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white dark:bg-slate-800 border shadow-sm">
-                                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                                <span className="text-sm font-medium text-green-600 dark:text-green-400">{rooms.length} active</span>
-                            </div>
+                        <div className="flex items-center gap-2 px-4 py-2 rounded-full glass border border-border/50">
+                            <span className="relative flex h-2 w-2">
+                                <span className="live-dot absolute h-full w-full rounded-full bg-emerald-500" />
+                                <span className="relative rounded-full h-2 w-2 bg-emerald-500" />
+                            </span>
+                            <span className="text-sm font-medium tabular-nums">{rooms.length} active</span>
                         </div>
                     </div>
 
                     <Tabs defaultValue="public" className="w-full">
-                        <TabsList className="grid w-full max-w-[300px] grid-cols-2 mb-6 h-10">
-                            <TabsTrigger value="public" className="gap-2 text-sm">
+                        <TabsList className="grid w-full max-w-xs grid-cols-2 mb-8 h-12 glass p-1">
+                            <TabsTrigger value="public" className="gap-2 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow">
                                 <HiGlobeAlt className="w-4 h-4" /> Public
                             </TabsTrigger>
-                            <TabsTrigger value="private" className="gap-2 text-sm">
+                            <TabsTrigger value="private" className="gap-2 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow">
                                 <HiLockClosed className="w-4 h-4" /> Private
                             </TabsTrigger>
                         </TabsList>
 
-                        <TabsContent value="public" className="m-0 min-h-[200px]">
+                        <TabsContent value="public" className="m-0">
                             {publicRooms.length === 0 ? (
-                                <div className="text-center py-12 border-2 border-dashed rounded-2xl bg-background/50">
-                                    <div className="w-16 h-16 rounded-full bg-muted mx-auto mb-3 flex items-center justify-center">
+                                <div className="text-center py-20 border-2 border-dashed rounded-2xl glass">
+                                    <div className="w-16 h-16 rounded-2xl bg-muted mx-auto mb-4 flex items-center justify-center">
                                         <HiGlobeAlt className="w-8 h-8 text-muted-foreground" />
                                     </div>
-                                    <h3 className="text-lg font-semibold mb-1">No active rooms</h3>
-                                    <p className="text-sm text-muted-foreground mb-4">Be the first to create a focus session!</p>
-                                    <Button onClick={() => document.getElementById('username-input')?.focus()} variant="secondary">
+                                    <h3 className="text-lg font-semibold">No active rooms</h3>
+                                    <p className="text-muted-foreground mt-1 mb-4">Be the first!</p>
+                                    <Button onClick={() => document.getElementById('username-input')?.focus()} variant="secondary" className="cursor-pointer">
                                         Create Room
                                     </Button>
                                 </div>
                             ) : (
-                                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {publicRooms.map(room => (
-                                        <Card
-                                            key={room.id}
-                                            className="group cursor-pointer hover:shadow-lg hover:border-primary/50 transition-all duration-300"
-                                            onClick={() => handleJoinRoom(room.id, room)}
-                                        >
-                                            <CardContent className="pt-5">
-                                                <div className="flex items-start justify-between mb-3">
-                                                    <Avatar className="h-10 w-10 ring-2 ring-primary/20">
-                                                        <AvatarFallback className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-bold text-base">
+                                        <Card key={room.id} className="group cursor-pointer card-glass" onClick={() => handleJoinRoom(room.id, room)}>
+                                            <CardContent className="p-6">
+                                                <div className="flex items-start justify-between mb-4">
+                                                    <Avatar className="h-12 w-12 ring-2 ring-primary/20">
+                                                        <AvatarFallback className="bg-primary text-primary-foreground font-bold text-lg">
                                                             {room.name.charAt(0).toUpperCase()}
                                                         </AvatarFallback>
                                                     </Avatar>
-                                                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-500/10 text-green-600 dark:text-green-400">
-                                                        <HiUserGroup className="w-3.5 h-3.5" />
-                                                        <span className="text-xs font-medium">{room.participantCount}</span>
+                                                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-500">
+                                                        <HiUserGroup className="w-4 h-4" />
+                                                        <span className="text-xs font-medium tabular-nums">{room.participantCount}</span>
                                                     </div>
                                                 </div>
-                                                <h3 className="font-semibold mb-1 group-hover:text-primary transition-colors text-lg">{room.name}</h3>
-                                                <p className="text-xs text-muted-foreground mb-4">Active focus session • {new Date(room.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                                                <Button variant="outline" className="w-full h-9 group-hover:bg-primary group-hover:text-primary-foreground transition-all">
-                                                    Join Room <HiArrowRight className="w-3.5 h-3.5 ml-2" />
+                                                <h3 className="font-semibold text-lg mb-1 truncate group-hover:text-primary transition-colors">{room.name}</h3>
+                                                <p className="text-sm text-muted-foreground mb-4">
+                                                    {new Date(room.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                </p>
+                                                <Button variant="outline" className="w-full h-11 group-hover:bg-primary group-hover:text-primary-foreground group-hover:border-primary transition-colors">
+                                                    Join <HiArrowRight className="w-4 h-4 ml-2" />
                                                 </Button>
                                             </CardContent>
                                         </Card>
@@ -627,56 +506,49 @@ export default function Home() {
                             )}
                         </TabsContent>
 
-                        <TabsContent value="private" className="m-0 min-h-[200px]">
+                        <TabsContent value="private" className="m-0">
                             {!isPremium ? (
-                                <div className="text-center py-12 border-2 border-dashed border-amber-500/30 rounded-2xl bg-gradient-to-br from-amber-500/5 to-orange-500/5">
-                                    <div className="w-16 h-16 rounded-full bg-amber-500/10 mx-auto mb-3 flex items-center justify-center">
+                                <div className="text-center py-20 border-2 border-dashed border-amber-500/30 rounded-2xl glass">
+                                    <div className="w-16 h-16 rounded-2xl bg-amber-500/10 mx-auto mb-4 flex items-center justify-center">
                                         <HiLockClosed className="w-8 h-8 text-amber-500" />
                                     </div>
-                                    <h3 className="text-lg font-semibold mb-1">Premium Feature</h3>
-                                    <p className="text-sm text-muted-foreground mb-4">Upgrade to create and join private rooms</p>
-                                    <Button
-                                        onClick={() => setPricingDialogOpen(true)}
-                                        className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600"
-                                    >
-                                        <HiStar className="w-4 h-4 mr-2" /> Upgrade to Premium
+                                    <h3 className="text-lg font-semibold">Premium Feature</h3>
+                                    <p className="text-muted-foreground mt-1 mb-4">Upgrade to access</p>
+                                    <Button onClick={() => setPricingDialogOpen(true)} className="btn-premium cursor-pointer">
+                                        <HiStar className="w-4 h-4 mr-2" /> Upgrade
                                     </Button>
                                 </div>
                             ) : privateRooms.length === 0 ? (
-                                <div className="text-center py-12 border-2 border-dashed rounded-2xl bg-background/50">
-                                    <div className="w-16 h-16 rounded-full bg-muted mx-auto mb-3 flex items-center justify-center">
+                                <div className="text-center py-20 border-2 border-dashed rounded-2xl glass">
+                                    <div className="w-16 h-16 rounded-2xl bg-muted mx-auto mb-4 flex items-center justify-center">
                                         <HiLockClosed className="w-8 h-8 text-muted-foreground" />
                                     </div>
-                                    <h3 className="text-lg font-semibold mb-1">No private rooms</h3>
-                                    <p className="text-sm text-muted-foreground mb-4">Create a password-protected focus session!</p>
-                                    <Button onClick={() => { setIsPrivateRoom(true); document.getElementById('username-input')?.focus(); }} variant="secondary">
+                                    <h3 className="text-lg font-semibold">No private rooms</h3>
+                                    <p className="text-muted-foreground mt-1 mb-4">Create one now</p>
+                                    <Button onClick={() => { setIsPrivateRoom(true); document.getElementById('username-input')?.focus(); }} variant="secondary" className="cursor-pointer">
                                         Create Private Room
                                     </Button>
                                 </div>
                             ) : (
-                                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {privateRooms.map(room => (
-                                        <Card
-                                            key={room.id}
-                                            className="group cursor-pointer hover:shadow-lg hover:border-amber-500/50 transition-all duration-300 bg-gradient-to-br from-amber-500/5 to-transparent"
-                                            onClick={() => handleJoinRoom(room.id, room)}
-                                        >
-                                            <CardContent className="pt-5">
-                                                <div className="flex items-start justify-between mb-3">
-                                                    <Avatar className="h-10 w-10 ring-2 ring-amber-500/20">
-                                                        <AvatarFallback className="bg-gradient-to-br from-amber-500 to-orange-500 text-white font-bold text-base">
+                                        <Card key={room.id} className="group cursor-pointer card-glass border-amber-500/20" onClick={() => handleJoinRoom(room.id, room)}>
+                                            <CardContent className="p-6">
+                                                <div className="flex items-start justify-between mb-4">
+                                                    <Avatar className="h-12 w-12 ring-2 ring-amber-500/30">
+                                                        <AvatarFallback className="bg-amber-500 text-white font-bold text-lg">
                                                             {room.name.charAt(0).toUpperCase()}
                                                         </AvatarFallback>
                                                     </Avatar>
-                                                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-600">
-                                                        <HiLockClosed className="w-3.5 h-3.5" />
-                                                        <span className="text-xs font-medium">{room.participantCount}</span>
+                                                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-500">
+                                                        <HiLockClosed className="w-4 h-4" />
+                                                        <span className="text-xs font-medium tabular-nums">{room.participantCount}</span>
                                                     </div>
                                                 </div>
-                                                <h3 className="font-semibold mb-1 group-hover:text-amber-600 transition-colors text-lg">{room.name}</h3>
-                                                <p className="text-xs text-muted-foreground mb-4">Private session</p>
-                                                <Button variant="outline" className="w-full h-9 group-hover:border-amber-500 group-hover:text-amber-600 transition-all">
-                                                    Join Room <HiArrowRight className="w-3.5 h-3.5 ml-2" />
+                                                <h3 className="font-semibold text-lg mb-1 truncate group-hover:text-amber-500 transition-colors">{room.name}</h3>
+                                                <p className="text-sm text-muted-foreground mb-4">Private</p>
+                                                <Button variant="outline" className="w-full h-11 group-hover:border-amber-500 group-hover:text-amber-500 transition-colors">
+                                                    Join <HiArrowRight className="w-4 h-4 ml-2" />
                                                 </Button>
                                             </CardContent>
                                         </Card>
@@ -688,35 +560,27 @@ export default function Home() {
                 </div>
             </section>
 
-            {/* Features Section - Moved down */}
-            <section className="py-16 px-6">
-                <div className="max-w-7xl mx-auto">
-                    <div className="text-center mb-12">
-                        <h2 className="text-3xl font-bold mb-2">
-                            Everything you need to{' '}
-                            <span className="bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-transparent">stay focused</span>
+            {/* ===== FEATURES ===== */}
+            <section className="py-24 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+                <div className="orb orb-primary w-[300px] h-[300px] -bottom-24 -left-24" aria-hidden="true" />
+
+                <div className="max-w-7xl mx-auto relative">
+                    <div className="text-center mb-16">
+                        <h2 className="text-3xl sm:text-4xl font-bold">
+                            Stay <span className="gradient-text-primary">focused</span>
                         </h2>
-                        <p className="text-muted-foreground max-w-2xl mx-auto">
-                            Powerful features designed to boost your productivity.
-                        </p>
+                        <p className="text-muted-foreground mt-3 text-lg">Powerful productivity tools</p>
                     </div>
 
-                    <div className="grid md:grid-cols-3 gap-6">
-                        {[
-                            { icon: HiUsers, title: 'Virtual Coworking', desc: 'Work alongside others in real-time video sessions', color: 'indigo' },
-                            { icon: HiClock, title: 'Focus Timer', desc: 'Built-in Pomodoro timer to track your productivity', color: 'purple' },
-                            { icon: HiBolt, title: 'Instant Rooms', desc: 'Create or join rooms in seconds, no setup needed', color: 'pink' },
-                            { icon: HiChatBubbleLeftRight, title: 'Team Chat', desc: 'Communicate without breaking your focus flow', color: 'emerald' },
-                            { icon: HiLockClosed, title: 'Private Rooms', desc: 'Password-protected spaces for your team', color: 'amber' },
-                            { icon: HiChartBar, title: 'Progress Tracking', desc: 'Monitor your focus hours and productivity', color: 'rose' },
-                        ].map((feature, i) => (
-                            <Card key={i} className="group hover:shadow-lg hover:border-primary/30 transition-all duration-300 border-none shadow-sm bg-muted/40">
-                                <CardContent className="pt-6">
-                                    <div className={`w-12 h-12 rounded-xl bg-${feature.color}-500/10 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform`}>
+                    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {featureCards.map((feature, i) => (
+                            <Card key={i} className="group card-glass border-border/50 hover:border-primary/30">
+                                <CardContent className="p-6">
+                                    <div className={`w-12 h-12 rounded-xl bg-${feature.color}-500/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
                                         <feature.icon className={`w-6 h-6 text-${feature.color}-500`} />
                                     </div>
-                                    <h3 className="text-base font-semibold mb-1">{feature.title}</h3>
-                                    <p className="text-sm text-muted-foreground">{feature.desc}</p>
+                                    <h3 className="text-lg font-semibold mb-1">{feature.title}</h3>
+                                    <p className="text-muted-foreground text-sm">{feature.desc}</p>
                                 </CardContent>
                             </Card>
                         ))}
@@ -724,123 +588,98 @@ export default function Home() {
                 </div>
             </section>
 
-            {/* Pricing Comparison */}
-            <section className="py-16 px-6 bg-muted/30">
+            {/* ===== PRICING ===== */}
+            <section className="py-24 px-4 sm:px-6 lg:px-8 bg-muted/30">
                 <div className="max-w-4xl mx-auto">
-                    <div className="text-center mb-10">
-                        <h2 className="text-2xl font-bold mb-2">Compare Plans</h2>
-                        <p className="text-sm text-muted-foreground">Choose the plan that works best for you</p>
+                    <div className="text-center mb-12">
+                        <h2 className="text-3xl sm:text-4xl font-bold">Plans</h2>
+                        <p className="text-muted-foreground mt-2">Choose yours</p>
                     </div>
 
-                    <Card className="overflow-hidden border shadow-sm">
-                        <div className="grid grid-cols-4 gap-4 p-4 items-center bg-muted/50 border-b">
-                            <div className="font-semibold text-sm">Features</div>
-                            <div className="text-center">
-                                <p className="font-semibold text-sm text-muted-foreground">Guest</p>
-                            </div>
-                            <div className="text-center">
-                                <p className="font-semibold text-sm text-primary">Free</p>
-                            </div>
-                            <div className="text-center">
-                                <p className="font-semibold text-sm text-amber-600">Premium</p>
-                            </div>
+                    <Card className="glass border-border/50 overflow-hidden">
+                        <div className="grid grid-cols-4 gap-4 p-4 bg-muted/50 border-b border-border/50 text-sm font-medium">
+                            <div>Feature</div>
+                            <div className="text-center text-muted-foreground">Guest</div>
+                            <div className="text-center text-primary">Free</div>
+                            <div className="text-center text-amber-500">Pro</div>
                         </div>
-                        <div className="divide-y text-sm">
-                            {features.map((feature, i) => (
-                                <div key={i} className="grid grid-cols-4 gap-4 p-3 items-center hover:bg-muted/30 transition-colors">
+                        <div className="divide-y divide-border/50">
+                            {features.map((f, i) => (
+                                <div key={i} className="grid grid-cols-4 gap-4 p-4 items-center text-sm hover:bg-muted/20 transition-colors">
                                     <div className="flex items-center gap-2">
-                                        <feature.icon className="w-4 h-4 text-muted-foreground" />
-                                        <span className="font-medium text-xs sm:text-sm">{feature.name}</span>
+                                        <f.icon className="w-4 h-4 text-muted-foreground shrink-0" />
+                                        <span className="font-medium truncate">{f.name}</span>
                                     </div>
                                     <div className="flex justify-center">
-                                        {feature.guest ? (
-                                            <HiCheck className="w-4 h-4 text-green-500" />
-                                        ) : (
-                                            <HiXMark className="w-4 h-4 text-red-400 opacity-50" />
-                                        )}
+                                        {f.guest ? <HiCheck className="w-5 h-5 text-emerald-500" /> : <HiXMark className="w-5 h-5 text-muted-foreground/30" />}
                                     </div>
                                     <div className="flex justify-center">
-                                        {feature.free ? (
-                                            <HiCheck className="w-4 h-4 text-green-500" />
-                                        ) : (
-                                            <HiXMark className="w-4 h-4 text-red-400 opacity-50" />
-                                        )}
+                                        {f.free ? <HiCheck className="w-5 h-5 text-emerald-500" /> : <HiXMark className="w-5 h-5 text-muted-foreground/30" />}
                                     </div>
                                     <div className="flex justify-center">
-                                        {feature.premium ? (
-                                            <HiCheck className="w-4 h-4 text-green-500" />
-                                        ) : (
-                                            <HiXMark className="w-4 h-4 text-red-400 opacity-50" />
-                                        )}
+                                        {f.premium ? <HiCheck className="w-5 h-5 text-emerald-500" /> : <HiXMark className="w-5 h-5 text-muted-foreground/30" />}
                                     </div>
                                 </div>
                             ))}
                         </div>
                     </Card>
+
+                    {!isPremium && (
+                        <div className="mt-10 text-center">
+                            <Button size="lg" className="h-14 px-10 btn-premium cursor-pointer" onClick={() => setPricingDialogOpen(true)}>
+                                <HiStar className="w-5 h-5 mr-2" /> Upgrade — ₹499
+                            </Button>
+                        </div>
+                    )}
                 </div>
             </section>
 
-            {/* Calendar Modal */}
+            {/* ===== FOOTER ===== */}
+            <footer className="py-12 px-4 sm:px-6 lg:px-8 border-t border-border/50">
+                <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
+                    <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center">
+                            <HiVideoCamera className="w-5 h-5 text-primary-foreground" />
+                        </div>
+                        <span className="font-bold">FocusRoom</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground">© {new Date().getFullYear()} FocusRoom</p>
+                </div>
+            </footer>
+
+            {/* ===== MODALS ===== */}
             <CalendarModal isOpen={calendarOpen} onClose={() => setCalendarOpen(false)} />
             <ProfileModal isOpen={isProfileModalOpen} onClose={() => setIsProfileModalOpen(false)} />
             <MembersSidebar isOpen={isMembersSidebarOpen} onClose={() => setIsMembersSidebarOpen(false)} />
 
-            {/* Auth and Pricing Dialogs (Unchanged in logic, just re-rendering) */}
+            {/* Auth Dialog */}
             <Dialog open={authDialogOpen} onOpenChange={setAuthDialogOpen}>
-                <DialogContent className="sm:max-w-md">
+                <DialogContent className="sm:max-w-md glass border-border/50">
                     <DialogHeader>
-                        <DialogTitle className="text-2xl">{authMode === 'login' ? 'Welcome back' : 'Create account'}</DialogTitle>
-                        <DialogDescription>
-                            {authMode === 'login'
-                                ? 'Enter your credentials to access your account'
-                                : 'Sign up to unlock video, audio, and chat features'}
-                        </DialogDescription>
+                        <DialogTitle className="text-2xl">{authMode === 'login' ? 'Welcome back' : 'Get started'}</DialogTitle>
+                        <DialogDescription>{authMode === 'login' ? 'Enter your credentials' : 'Create your account'}</DialogDescription>
                     </DialogHeader>
                     <form onSubmit={handleAuthSubmit} className="space-y-4 pt-4">
                         {authMode === 'signup' && (
                             <div className="space-y-2">
                                 <Label htmlFor="auth-name">Name</Label>
-                                <Input
-                                    id="auth-name"
-                                    type="text"
-                                    placeholder="Your name"
-                                    value={authName}
-                                    onChange={(e) => setAuthName(e.target.value)}
-                                    required
-                                    className="h-10"
-                                />
+                                <Input id="auth-name" placeholder="Your name" value={authName} onChange={e => setAuthName(e.target.value)} required className="h-12 bg-background/50" autoComplete="name" />
                             </div>
                         )}
                         <div className="space-y-2">
                             <Label htmlFor="auth-email">Email</Label>
-                            <Input
-                                id="auth-email"
-                                type="email"
-                                placeholder="you@example.com"
-                                value={authEmail}
-                                onChange={(e) => setAuthEmail(e.target.value)}
-                                required
-                                className="h-10"
-                            />
+                            <Input id="auth-email" type="email" placeholder="you@example.com" value={authEmail} onChange={e => setAuthEmail(e.target.value)} required className="h-12 bg-background/50" autoComplete="email" />
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="auth-password">Password</Label>
-                            <Input
-                                id="auth-password"
-                                type="password"
-                                placeholder="••••••••"
-                                value={authPassword}
-                                onChange={(e) => setAuthPassword(e.target.value)}
-                                required
-                                className="h-10"
-                            />
+                            <Input id="auth-password" type="password" placeholder="••••••••" value={authPassword} onChange={e => setAuthPassword(e.target.value)} required className="h-12 bg-background/50" autoComplete={authMode === 'login' ? 'current-password' : 'new-password'} />
                         </div>
-                        <Button type="submit" className="w-full h-10" disabled={isAuthLoading}>
-                            {isAuthLoading ? 'Please wait...' : (authMode === 'login' ? 'Log In' : 'Create Account')}
+                        <Button type="submit" className="w-full h-12 btn-glow" disabled={isAuthLoading}>
+                            {isAuthLoading ? 'Please wait…' : (authMode === 'login' ? 'Log In' : 'Create Account')}
                         </Button>
                         <p className="text-center text-sm text-muted-foreground">
-                            {authMode === 'login' ? "Don't have an account? " : 'Already have an account? '}
-                            <button type="button" className="text-primary font-medium hover:underline" onClick={() => setAuthMode(authMode === 'login' ? 'signup' : 'login')}>
+                            {authMode === 'login' ? 'No account? ' : 'Have an account? '}
+                            <button type="button" className="text-primary font-medium hover:underline cursor-pointer" onClick={() => setAuthMode(authMode === 'login' ? 'signup' : 'login')}>
                                 {authMode === 'login' ? 'Sign Up' : 'Log In'}
                             </button>
                         </p>
@@ -848,72 +687,51 @@ export default function Home() {
                 </DialogContent>
             </Dialog>
 
+            {/* Pricing Dialog */}
             <Dialog open={pricingDialogOpen} onOpenChange={setPricingDialogOpen}>
-                <DialogContent className="sm:max-w-lg">
+                <DialogContent className="sm:max-w-lg glass border-border/50">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-3 text-2xl">
-                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center">
+                            <div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center">
                                 <HiStar className="w-5 h-5 text-white" />
                             </div>
-                            Upgrade to Premium
+                            Upgrade
                         </DialogTitle>
-                        <DialogDescription>
-                            Unlock private rooms and exclusive features
-                        </DialogDescription>
+                        <DialogDescription>Unlock all features</DialogDescription>
                     </DialogHeader>
 
                     {paymentStep === 'plan' && (
                         <div className="space-y-6 pt-4">
-                            <div className="p-6 rounded-2xl border-2 border-amber-500 bg-gradient-to-br from-amber-500/10 to-orange-500/10">
+                            <div className="p-6 rounded-2xl border-2 border-amber-500 bg-amber-500/5">
                                 <div className="flex items-center justify-between mb-6">
                                     <div>
-                                        <h3 className="text-xl font-bold">Premium Plan</h3>
-                                        <p className="text-sm text-muted-foreground">Lifetime access</p>
+                                        <h3 className="text-xl font-bold">Premium</h3>
+                                        <p className="text-sm text-muted-foreground">Lifetime</p>
                                     </div>
                                     <div className="text-right">
-                                        <p className="text-4xl font-bold">₹499</p>
-                                        <p className="text-xs text-muted-foreground">one-time payment</p>
+                                        <p className="text-4xl font-bold tabular-nums">₹499</p>
+                                        <p className="text-xs text-muted-foreground">one-time</p>
                                     </div>
                                 </div>
                                 <ul className="space-y-3">
-                                    {[
-                                        'Unlimited private rooms',
-                                        'Password-protected sessions',
-                                        'Priority support',
-                                        'Early feature access',
-                                    ].map((feature, i) => (
+                                    {['Private rooms', 'Password protection', 'Priority support', 'Early access'].map((f, i) => (
                                         <li key={i} className="flex items-center gap-3">
-                                            <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
+                                            <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
                                                 <HiCheck className="w-3 h-3 text-white" />
                                             </div>
-                                            <span>{feature}</span>
+                                            <span>{f}</span>
                                         </li>
                                     ))}
                                 </ul>
                             </div>
-
-                            <Button
-                                onClick={() => setPaymentStep('payment')}
-                                className="w-full h-12 text-base bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600"
-                                disabled={!isLoggedIn}
-                            >
-                                {isLoggedIn ? (
-                                    <>
-                                        <HiCreditCard className="w-5 h-5 mr-2" /> Continue to Payment
-                                    </>
-                                ) : (
-                                    'Login Required'
-                                )}
+                            <Button onClick={() => setPaymentStep('payment')} className="w-full h-14 btn-premium cursor-pointer" disabled={!isLoggedIn}>
+                                {isLoggedIn ? <><HiCreditCard className="w-5 h-5 mr-2" /> Continue</> : 'Login Required'}
                             </Button>
-
                             {!isLoggedIn && (
                                 <p className="text-sm text-center text-muted-foreground">
-                                    <button
-                                        className="text-primary font-medium hover:underline"
-                                        onClick={() => { setPricingDialogOpen(false); setAuthDialogOpen(true); }}
-                                    >
-                                        Login or Sign up
-                                    </button> to continue
+                                    <button className="text-primary font-medium hover:underline cursor-pointer" onClick={() => { setPricingDialogOpen(false); setAuthDialogOpen(true); }}>
+                                        Login
+                                    </button>{' '}to continue
                                 </p>
                             )}
                         </div>
@@ -921,58 +739,34 @@ export default function Home() {
 
                     {paymentStep === 'payment' && (
                         <div className="space-y-6 pt-4">
-                            <div className="p-4 rounded-xl bg-muted flex items-center justify-between">
-                                <span className="font-medium">Premium Plan</span>
-                                <span className="text-xl font-bold">₹499</span>
+                            <div className="p-4 rounded-xl bg-muted/50 flex items-center justify-between">
+                                <span className="font-medium">Premium</span>
+                                <span className="text-xl font-bold tabular-nums">₹499</span>
                             </div>
-
                             <div className="space-y-4">
                                 <div className="space-y-2">
                                     <Label>Card Number</Label>
-                                    <Input
-                                        placeholder="4242 4242 4242 4242"
-                                        value={cardNumber}
-                                        onChange={(e) => setCardNumber(e.target.value)}
-                                        className="h-10"
-                                    />
+                                    <Input placeholder="4242 4242 4242 4242" value={cardNumber} onChange={e => setCardNumber(e.target.value)} className="h-12 bg-background/50" autoComplete="cc-number" />
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
                                         <Label>Expiry</Label>
-                                        <Input
-                                            placeholder="MM/YY"
-                                            value={cardExpiry}
-                                            onChange={(e) => setCardExpiry(e.target.value)}
-                                            className="h-10"
-                                        />
+                                        <Input placeholder="MM/YY" value={cardExpiry} onChange={e => setCardExpiry(e.target.value)} className="h-12 bg-background/50" autoComplete="cc-exp" />
                                     </div>
                                     <div className="space-y-2">
                                         <Label>CVC</Label>
-                                        <Input
-                                            placeholder="123"
-                                            value={cardCvc}
-                                            onChange={(e) => setCardCvc(e.target.value)}
-                                            className="h-10"
-                                        />
+                                        <Input placeholder="123" value={cardCvc} onChange={e => setCardCvc(e.target.value)} className="h-12 bg-background/50" autoComplete="cc-csc" />
                                     </div>
                                 </div>
                             </div>
-
-                            <div className="flex items-center gap-3 p-4 rounded-xl bg-green-500/10 border border-green-500/20">
-                                <HiShieldCheck className="w-6 h-6 text-green-500 shrink-0" />
-                                <p className="text-sm text-muted-foreground">Demo payment only. No charges will be made.</p>
+                            <div className="flex items-center gap-3 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                                <HiShieldCheck className="w-6 h-6 text-emerald-500 shrink-0" />
+                                <p className="text-sm text-muted-foreground">Demo only. No charges.</p>
                             </div>
-
                             <div className="flex gap-3">
-                                <Button variant="outline" onClick={() => setPaymentStep('plan')} className="flex-1 h-12">
-                                    Back
-                                </Button>
-                                <Button
-                                    onClick={handleUpgradeToPremium}
-                                    disabled={paymentProcessing}
-                                    className="flex-1 h-12 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600"
-                                >
-                                    {paymentProcessing ? 'Processing...' : 'Pay ₹499'}
+                                <Button variant="outline" onClick={() => setPaymentStep('plan')} className="flex-1 h-12 cursor-pointer">Back</Button>
+                                <Button onClick={handleUpgradeToPremium} disabled={paymentProcessing} className="flex-1 h-12 btn-premium cursor-pointer">
+                                    {paymentProcessing ? 'Processing…' : 'Pay ₹499'}
                                 </Button>
                             </div>
                         </div>
@@ -980,32 +774,15 @@ export default function Home() {
 
                     {paymentStep === 'success' && (
                         <div className="py-12 text-center">
-                            <div className="w-20 h-20 rounded-full bg-green-500 mx-auto mb-6 flex items-center justify-center animate-in zoom-in">
+                            <div className="w-20 h-20 rounded-full bg-emerald-500 mx-auto mb-6 flex items-center justify-center animate-scale-in">
                                 <HiCheck className="w-10 h-10 text-white" />
                             </div>
-                            <h3 className="text-2xl font-bold mb-2">Welcome to Premium! 🎉</h3>
-                            <p className="text-muted-foreground">You now have access to all premium features.</p>
+                            <h3 className="text-2xl font-bold mb-2">Welcome to Premium!</h3>
+                            <p className="text-muted-foreground">All features unlocked.</p>
                         </div>
                     )}
                 </DialogContent>
             </Dialog>
-
-            {/* Footer */}
-            <footer className="py-8 px-6 border-t mt-auto">
-                <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-                            <HiVideoCamera className="w-4 h-4 text-white" />
-                        </div>
-                        <span className="font-semibold text-sm">FocusRoom</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                        © 2025 FocusRoom. Built for productivity.
-                    </p>
-                </div>
-            </footer>
-
-            <CalendarModal isOpen={calendarOpen} onClose={() => setCalendarOpen(false)} />
         </div>
     );
 }
