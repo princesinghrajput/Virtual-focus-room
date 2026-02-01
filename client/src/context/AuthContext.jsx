@@ -111,7 +111,20 @@ export function AuthProvider({ children }) {
 
     // Get current tier
     const tier = user?.tier || USER_TIERS.GUEST;
-    const permissions = tierPermissions[tier] || tierPermissions[USER_TIERS.GUEST];
+
+    // Default permissions fallback to prevent undefined errors
+    const defaultPermissions = {
+        canToggleVideo: false,
+        canToggleAudio: false,
+        canChat: false,
+        canShareScreen: false,
+        canCreateRoom: true,
+        canCreatePrivateRoom: false,
+        canPingUsers: false,
+        canSendAttachments: false,
+    };
+
+    const permissions = tierPermissions[tier] || tierPermissions[USER_TIERS.GUEST] || defaultPermissions;
 
     // Login function
     const login = async (email, password) => {
