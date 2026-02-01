@@ -17,6 +17,7 @@ exports.sendFriendRequest = async (req, res) => {
             return res.status(404).json({ success: false, message: 'User not found' });
         }
 
+        
         // Check if already friends
         if (receiver.friends.includes(senderId)) {
             return res.status(400).json({ success: false, message: 'Already friends' });
