@@ -42,7 +42,3 @@ cd backend && npm install
 cd backend && npm start
 cd client && npm run dev
 ```
-
-## License
-
-MIT
