@@ -31,6 +31,7 @@ A collaborative virtual focus room application for remote productivity and co-wo
 - React Native + Expo
 - NativeWind (Tailwind CSS)
 
+  
 ## Getting Started
 
 ```bash
